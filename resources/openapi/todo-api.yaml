@@ -1,0 +1,372 @@
+openapi: 3.1.0
+info:
+  title: Todo API
+  version: 1.0.0
+  description: >
+    REST API for authenticating users with Sanctum and managing personal todo
+    items. All todo endpoints require a bearer token obtained from the auth
+    endpoints unless stated otherwise.
+servers:
+  - url: http://localhost
+paths:
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPayload'
+      responses:
+        '201':
+          description: Registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login and receive token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginPayload'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '422':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke current token
+      security:
+        - SanctumToken: [ ]
+      responses:
+        '200':
+          description: Logout confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          description: Unauthenticated
+  /api/user:
+    get:
+      tags: [Authentication]
+      summary: Get the currently authenticated user
+      security:
+        - SanctumToken: [ ]
+      responses:
+        '200':
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthenticated
+  /api/todos:
+    get:
+      tags: [Todos]
+      summary: List todos owned by the authenticated user
+      security:
+        - SanctumToken: [ ]
+      parameters:
+        - name: per_page
+          in: query
+          description: Number of results per page (1-100, default 15)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Paginated todos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoCollection'
+        '401':
+          description: Unauthenticated
+    post:
+      tags: [Todos]
+      summary: Create a todo
+      security:
+        - SanctumToken: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoStorePayload'
+      responses:
+        '201':
+          description: Todo created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResource'
+        '401':
+          description: Unauthenticated
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /api/todos/{todo}:
+    parameters:
+      - name: todo
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ID of the todo
+    get:
+      tags: [Todos]
+      summary: Show a single todo
+      security:
+        - SanctumToken: [ ]
+      responses:
+        '200':
+          description: Todo resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResource'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Unauthorized access
+        '404':
+          description: Not found
+    put:
+      tags: [Todos]
+      summary: Update a todo
+      security:
+        - SanctumToken: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoUpdatePayload'
+      responses:
+        '200':
+          description: Updated todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResource'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Unauthorized access
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+    delete:
+      tags: [Todos]
+      summary: Delete a todo
+      security:
+        - SanctumToken: [ ]
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Unauthorized access
+components:
+  securitySchemes:
+    SanctumToken:
+      type: http
+      scheme: bearer
+      bearerFormat: Token
+  schemas:
+    RegisterPayload:
+      type: object
+      required: [name, email, password, password_confirmation]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+        password_confirmation:
+          type: string
+          format: password
+        device_name:
+          type: string
+          maxLength: 255
+          nullable: true
+    LoginPayload:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        device_name:
+          type: string
+          maxLength: 255
+          nullable: true
+    TodoStorePayload:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        is_completed:
+          type: boolean
+          default: false
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+    TodoUpdatePayload:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        is_completed:
+          type: boolean
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+    TokenResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          description: Plain-text token to use as a bearer token
+        user:
+          $ref: '#/components/schemas/User'
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+    TodoResource:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Todo'
+    TodoCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Todo'
+        links:
+          type: object
+          properties:
+            first: { type: string, nullable: true }
+            last: { type: string, nullable: true }
+            prev: { type: string, nullable: true }
+            next: { type: string, nullable: true }
+        meta:
+          type: object
+          properties:
+            current_page: { type: integer }
+            from: { type: integer, nullable: true }
+            last_page: { type: integer }
+            path: { type: string }
+            per_page: { type: integer }
+            to: { type: integer, nullable: true }
+            total: { type: integer }
+    Todo:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_completed:
+          type: boolean
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'The given data was invalid.'
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string

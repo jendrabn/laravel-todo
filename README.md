@@ -75,6 +75,15 @@ Workflow `.github/workflows/ci-cd.yml` menangani build & deploy otomatis. Beriku
    - `SSH_HOST`, `SSH_USER`, `SSH_KEY` (private key format PEM), opsional `SSH_PORT` jika tidak 22.
    - `DEPLOY_PATH` (mis. `/var/www/laravel-todo`).
 3. Opsional: jalankan workflow secara manual di tab Actions (pilih "CI/CD" lalu "Run workflow") setelah secrets terisi untuk memastikan koneksi SSH dan Docker Compose di server siap.
+4. Pastikan folder proyek di server dimiliki oleh user SSH (misal `jendra`) agar perintah `git fetch` tidak gagal:
+   ```bash
+   sudo chown -R jendra:jendra /var/www/laravel-todo
+   su - jendra
+   cd /var/www/laravel-todo
+   git fetch --all --tags
+   git reset --hard origin/main
+   ```
+   Jika perintah di atas berhasil, workflow dapat menarik kode terbaru sebelum menjalankan Docker Compose.
 
 ### 2. Deploy saat ada update kode
 1. Buat branch atau pull request seperti biasa. Workflow otomatis menjalankan job **Validasi & Test** pada setiap push/PR untuk memastikan lint, build aset, dan test lulus.

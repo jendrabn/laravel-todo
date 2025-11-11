@@ -14,6 +14,7 @@ import {
     Plus,
     Trash2,
     UserPlus,
+    X,
 } from 'lucide-react';
 
 const statusFilters = [
@@ -52,6 +53,7 @@ export default function TodosIndex({ app }) {
     const [authForm, setAuthForm] = useState(emptyAuthForm);
     const [authErrors, setAuthErrors] = useState({});
     const [authLoading, setAuthLoading] = useState(false);
+    const [isTodoModalOpen, setIsTodoModalOpen] = useState(false);
 
     const filteredTodos = useMemo(() => {
         if (filter === 'completed') {
@@ -126,6 +128,26 @@ export default function TodosIndex({ app }) {
         setFormErrors({});
     };
 
+    const openTodoModal = (todo = null) => {
+        if (todo) {
+            setSelectedTodo(todo);
+            setForm({
+                title: todo.title,
+                description: todo.description ?? '',
+                due_at: todo.due_at ? dayjs(todo.due_at).format('YYYY-MM-DDTHH:mm') : '',
+            });
+        } else {
+            resetForm();
+        }
+        setFormErrors({});
+        setIsTodoModalOpen(true);
+    };
+
+    const closeTodoModal = () => {
+        setIsTodoModalOpen(false);
+        resetForm();
+    };
+
     const persistTodo = async (event) => {
         event.preventDefault();
         setIsSaving(true);
@@ -146,7 +168,7 @@ export default function TodosIndex({ app }) {
                 showToast('Tugas baru berhasil dibuat');
             }
 
-            resetForm();
+            closeTodoModal();
             fetchData();
         } catch (error) {
             const errors = handleApiErrors(error, 'Tidak dapat menyimpan tugas');
@@ -177,21 +199,12 @@ export default function TodosIndex({ app }) {
             showToast('Tugas dihapus');
             if (selectedTodo?.id === todo.id) {
                 resetForm();
+                setIsTodoModalOpen(false);
             }
             fetchData();
         } catch (error) {
             handleApiErrors(error, 'Gagal menghapus tugas');
         }
-    };
-
-    const selectAsDraft = (todo) => {
-        setSelectedTodo(todo);
-        setForm({
-            title: todo.title,
-            description: todo.description ?? '',
-            due_at: todo.due_at ? dayjs(todo.due_at).format('YYYY-MM-DDTHH:mm') : '',
-        });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const submitAuth = async (event) => {
@@ -217,7 +230,7 @@ export default function TodosIndex({ app }) {
             setToken(data.token);
             setUser(data.user);
             setAuthForm(emptyAuthForm);
-            showToast(authMode === 'login' ? 'Selamat datang kembali!' : 'Registrasi berhasil 🎉');
+            showToast(authMode === 'login' ? 'Selamat datang kembali!' : 'Registrasi berhasil!');
             fetchData();
         } catch (error) {
             const errors = handleApiErrors(error, 'Gagal memproses akun');
@@ -240,6 +253,7 @@ export default function TodosIndex({ app }) {
             setTodos([]);
             setUser(null);
             resetForm();
+            setIsTodoModalOpen(false);
             showToast('Berhasil keluar');
         }
     };
@@ -252,241 +266,201 @@ export default function TodosIndex({ app }) {
     return (
         <>
             <Head title="Todo Board" />
-            <div className="min-h-screen bg-slate-950">
-                <div className="relative isolate">
-                    <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-900 via-indigo-900/60 to-slate-900 opacity-90" />
-                    <div className="absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-600/60 via-slate-900 to-slate-950 blur-3xl" />
-                    <div className="mx-auto max-w-6xl px-4 pb-24 pt-16 sm:px-6 lg:px-8">
-                        <header className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-indigo-950/20 backdrop-blur">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <div>
-                                    <p className="text-sm font-semibold uppercase tracking-widest text-indigo-300">
-                                        {app?.name ?? 'Laravel Todo'}
-                                    </p>
-                                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                                        {heroTitle}
-                                    </h1>
-                                    <p className="mt-3 max-w-2xl text-base text-slate-200">{heroSubtitle}</p>
-                                </div>
-                                {token && (
-                                    <div className="ml-auto">
-                                        <button
-                                            onClick={logout}
-                                            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
-                                        >
-                                            <LogOut className="h-4 w-4" />
-                                            Keluar
-                                        </button>
-                                    </div>
-                                )}
+            <div className="min-h-screen bg-slate-50">
+                <div className="mx-auto max-w-6xl px-4 pb-24 pt-16 sm:px-6 lg:px-8">
+                    <header className="flex flex-col gap-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl shadow-slate-200/70">
+                        <div className="flex flex-wrap items-center gap-4">
+                            <div>
+                                <p className="text-sm font-semibold uppercase tracking-widest text-indigo-500">
+                                    {app?.name ?? 'Laravel Todo'}
+                                </p>
+                                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                                    {heroTitle}
+                                </h1>
+                                <p className="mt-3 max-w-2xl text-base text-slate-600">{heroSubtitle}</p>
                             </div>
+                            {token && (
+                                <div className="ml-auto flex flex-wrap items-center gap-3">
+                                    <button
+                                        onClick={() => openTodoModal()}
+                                        className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Tambah Tugas
+                                    </button>
+                                    <button
+                                        onClick={logout}
+                                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        Keluar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
 
-                            {token && <StatsRow stats={stats} />}
-                        </header>
+                        {token && <StatsRow stats={stats} />}
+                    </header>
 
-                        <main className="mt-12 grid gap-10 lg:grid-cols-[2fr,1fr]">
-                            <section className="space-y-6">
-                                {token && (
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        {statusFilters.map((item) => (
-                                            <button
-                                                key={item.key}
-                                                onClick={() => setFilter(item.key)}
-                                                className={clsx(
-                                                    'rounded-full px-4 py-2 text-sm font-semibold transition',
-                                                    filter === item.key
-                                                        ? 'bg-indigo-500/80 text-white shadow-lg shadow-indigo-500/40'
-                                                        : 'bg-white/10 text-white hover:bg-white/20',
-                                                )}
-                                            >
-                                                {item.label}
-                                            </button>
-                                        ))}
+                    <main className="mt-12 grid gap-10 lg:grid-cols-[2fr,1fr]">
+                        <section className="space-y-6">
+                            {token && (
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {statusFilters.map((item) => (
+                                        <button
+                                            key={item.key}
+                                            onClick={() => setFilter(item.key)}
+                                            className={clsx(
+                                                'rounded-full px-4 py-2 text-sm font-semibold transition',
+                                                filter === item.key
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200/70'
+                                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                                            )}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                {isLoadingTodos && (
+                                    <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+                                        Memuat data terbaru...
                                     </div>
                                 )}
 
-                                <div className="space-y-4">
-                                    {isLoadingTodos && (
-                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-200">
-                                            Memuat data terbaru...
-                                        </div>
-                                    )}
+                                {!isLoadingTodos && filteredTodos.length === 0 && token && (
+                                    <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-12 text-center">
+                                        <CalendarCheck2 className="mx-auto h-10 w-10 text-indigo-500" />
+                                        <p className="mt-4 text-lg font-semibold text-slate-900">
+                                            Belum ada tugas pada filter ini
+                                        </p>
+                                        <p className="mt-2 text-sm text-slate-600">
+                                            Klik tombol "Tambah Tugas" untuk membuat rencana pertamamu.
+                                        </p>
+                                    </div>
+                                )}
 
-                                    {!isLoadingTodos && filteredTodos.length === 0 && token && (
-                                        <div className="rounded-3xl border border-dashed border-white/20 bg-white/5 px-8 py-12 text-center">
-                                            <CalendarCheck2 className="mx-auto h-10 w-10 text-indigo-400" />
-                                            <p className="mt-4 text-lg font-semibold text-white">
-                                                Belum ada tugas pada filter ini
-                                            </p>
-                                            <p className="mt-2 text-sm text-slate-200">
-                                                Tambahkan rencana pertama Anda di panel sebelah kanan.
-                                            </p>
-                                        </div>
-                                    )}
+                                {!token && (
+                                    <AuthCard
+                                        authMode={authMode}
+                                        setAuthMode={setAuthMode}
+                                        authForm={authForm}
+                                        setAuthForm={setAuthForm}
+                                        authErrors={authErrors}
+                                        authLoading={authLoading}
+                                        submitAuth={submitAuth}
+                                    />
+                                )}
 
-                                    {!token && (
-                                        <AuthCard
-                                            authMode={authMode}
-                                            setAuthMode={setAuthMode}
-                                            authForm={authForm}
-                                            setAuthForm={setAuthForm}
-                                            authErrors={authErrors}
-                                            authLoading={authLoading}
-                                            submitAuth={submitAuth}
-                                        />
-                                    )}
+                                {token &&
+                                    filteredTodos.map((todo) => (
+                                        <article
+                                            key={todo.id}
+                                            className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/70 transition hover:border-indigo-200"
+                                        >
+                                            <div className="flex flex-wrap items-start gap-4">
+                                                <button
+                                                    onClick={() => toggleTodo(todo)}
+                                                    className={clsx(
+                                                        'flex h-11 w-11 items-center justify-center rounded-2xl border transition',
+                                                        todo.is_completed
+                                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                                                            : 'border-slate-200 bg-white text-slate-400 hover:border-indigo-200 hover:text-indigo-500',
+                                                    )}
+                                                >
+                                                    {todo.is_completed ? (
+                                                        <CheckCircle2 className="h-5 w-5" />
+                                                    ) : (
+                                                        <Circle className="h-5 w-5" />
+                                                    )}
+                                                </button>
 
-                                    {token &&
-                                        filteredTodos.map((todo) => (
-                                            <article
-                                                key={todo.id}
-                                                className="group rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-slate-900/60 to-slate-950 p-6 shadow-lg shadow-slate-950/40 transition hover:border-indigo-400/60"
-                                            >
-                                                <div className="flex flex-wrap items-start gap-4">
-                                                    <button
-                                                        onClick={() => toggleTodo(todo)}
-                                                        className={clsx(
-                                                            'flex h-11 w-11 items-center justify-center rounded-2xl border transition',
-                                                            todo.is_completed
-                                                                ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
-                                                                : 'border-white/20 bg-white/5 text-white hover:border-indigo-400/40 hover:text-indigo-200',
-                                                        )}
-                                                    >
+                                                <div className="flex-1 space-y-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <h3 className="text-lg font-semibold text-slate-900">{todo.title}</h3>
                                                         {todo.is_completed ? (
-                                                            <CheckCircle2 className="h-5 w-5" />
-                                                        ) : (
-                                                            <Circle className="h-5 w-5" />
-                                                        )}
-                                                    </button>
-
-                                                    <div className="flex-1 space-y-2">
-                                                        <div className="flex items-center gap-3">
-                                                            <h3 className="text-lg font-semibold text-white">{todo.title}</h3>
-                                                            {todo.is_completed ? (
-                                                                <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-                                                                    Selesai
-                                                                </span>
-                                                            ) : todo.due_at ? (
-                                                                <span className="rounded-full bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200">
-                                                                    {dayjs(todo.due_at).isBefore(dayjs()) ? 'Terlambat' : 'On track'}
-                                                                </span>
-                                                            ) : null}
-                                                        </div>
-                                                        {todo.description && (
-                                                            <p className="text-sm text-slate-200">{todo.description}</p>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-4 text-xs text-slate-300">
-                                                            <span className="inline-flex items-center gap-2">
-                                                                <Clock3 className="h-4 w-4 text-indigo-300" />
-                                                                {formatDate(todo.due_at)}
+                                                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                                                                Selesai
                                                             </span>
-                                                        </div>
+                                                        ) : todo.due_at ? (
+                                                            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
+                                                                {dayjs(todo.due_at).isBefore(dayjs()) ? 'Terlambat' : 'On track'}
+                                                            </span>
+                                                        ) : null}
                                                     </div>
-
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => selectAsDraft(todo)}
-                                                            className="rounded-full border border-white/15 bg-white/5 p-2 text-white hover:border-indigo-300/60 hover:text-indigo-200"
-                                                        >
-                                                            <PencilLine className="h-5 w-5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => destroyTodo(todo)}
-                                                            className="rounded-full border border-rose-400/30 bg-rose-500/10 p-2 text-rose-100 hover:bg-rose-500/20"
-                                                        >
-                                                            <Trash2 className="h-5 w-5" />
-                                                        </button>
+                                                    {todo.description && (
+                                                        <p className="text-sm text-slate-600">{todo.description}</p>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                                                        <span className="inline-flex items-center gap-2">
+                                                            <Clock3 className="h-4 w-4 text-indigo-500" />
+                                                            {formatDate(todo.due_at)}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            </article>
-                                        ))}
-                                </div>
-                            </section>
 
-                            <aside className="space-y-6">
-                                {token && (
-                                    <form
-                                        onSubmit={persistTodo}
-                                        className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-indigo-950/30 backdrop-blur"
-                                    >
-                                        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-indigo-200">
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => openTodoModal(todo)}
+                                                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:border-indigo-200 hover:text-indigo-500"
+                                                    >
+                                                        <PencilLine className="h-5 w-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => destroyTodo(todo)}
+                                                        className="rounded-full border border-rose-200 bg-rose-50 p-2 text-rose-500 hover:bg-rose-100"
+                                                    >
+                                                        <Trash2 className="h-5 w-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    ))}
+                            </div>
+                        </section>
+
+                        <aside className="space-y-6">
+                            {token && (
+                                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/70">
+                                    <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-indigo-600">
+                                        <Plus className="h-4 w-4" />
+                                        Kelola tugas
+                                    </div>
+                                    <p className="mt-3 text-sm text-slate-600">
+                                        Gunakan modal untuk membuat rencana baru atau menyunting tugas yang sudah ada. Semua
+                                        perubahan akan langsung tersinkron ke daftar sebelah kiri.
+                                    </p>
+                                    <div className="mt-6 flex flex-col gap-3">
+                                        <button
+                                            onClick={() => openTodoModal()}
+                                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                                        >
                                             <Plus className="h-4 w-4" />
-                                            {selectedTodo ? 'Perbarui Tugas' : 'Rencana Baru'}
-                                        </div>
-
-                                        <div className="mt-6 space-y-5">
-                                            <Field
-                                                label="Judul"
-                                                error={formErrors.title}
-                                                input={
-                                                    <input
-                                                        type="text"
-                                                        value={form.title}
-                                                        onChange={(event) =>
-                                                            setForm((prev) => ({ ...prev, title: event.target.value }))
-                                                        }
-                                                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-400 focus:border-indigo-400/70 focus:outline-none"
-                                                        placeholder="Contoh: Review sprint backlog"
-                                                    />
-                                                }
-                                            />
-
-                                            <Field
-                                                label="Deskripsi"
-                                                error={formErrors.description}
-                                                input={
-                                                    <textarea
-                                                        value={form.description}
-                                                        onChange={(event) =>
-                                                            setForm((prev) => ({ ...prev, description: event.target.value }))
-                                                        }
-                                                        rows={3}
-                                                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-400 focus:border-indigo-400/70 focus:outline-none"
-                                                        placeholder="Detail tambahan atau langkah kecil..."
-                                                    />
-                                                }
-                                            />
-
-                                            <Field
-                                                label="Deadline"
-                                                error={formErrors.due_at}
-                                                input={
-                                                    <input
-                                                        type="datetime-local"
-                                                        value={form.due_at}
-                                                        onChange={(event) =>
-                                                            setForm((prev) => ({ ...prev, due_at: event.target.value }))
-                                                        }
-                                                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:border-indigo-400/70 focus:outline-none"
-                                                    />
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="mt-8 flex flex-wrap gap-3">
-                                            <button
-                                                type="submit"
-                                                disabled={isSaving}
-                                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-60"
-                                            >
-                                                <Plus className="h-4 w-4" />
-                                                {selectedTodo ? 'Simpan Perubahan' : 'Tambahkan'}
-                                            </button>
-                                            {selectedTodo && (
-                                                <button
-                                                    type="button"
-                                                    onClick={resetForm}
-                                                    className="inline-flex items-center justify-center rounded-2xl border border-white/20 px-4 py-3 text-sm font-semibold text-white hover:border-white/40"
-                                                >
-                                                    Batalkan
-                                                </button>
-                                            )}
-                                        </div>
-                                    </form>
-                                )}
-                            </aside>
-                        </main>
-                    </div>
+                                            Tugas Baru
+                                        </button>
+                                        <button
+                                            onClick={fetchData}
+                                            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                                        >
+                                            Segarkan Daftar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </aside>
+                    </main>
+                    <TodoModal
+                        isOpen={isTodoModalOpen}
+                        onClose={closeTodoModal}
+                        onSubmit={persistTodo}
+                        form={form}
+                        setForm={setForm}
+                        formErrors={formErrors}
+                        isSaving={isSaving}
+                        selectedTodo={selectedTodo}
+                    />
                 </div>
             </div>
 
@@ -514,21 +488,21 @@ function StatsRow({ stats }) {
                 label="Total Tugas"
                 value={stats.total}
                 chip="+ produktif"
-                gradient="from-indigo-500/40 to-indigo-400/10"
+                gradient="from-indigo-50 to-white"
             />
             <StatCard
                 icon={CheckCircle2}
                 label="Selesai"
                 value={stats.completed}
                 chip="streak"
-                gradient="from-emerald-500/40 to-emerald-400/10"
+                gradient="from-emerald-50 to-white"
             />
             <StatCard
                 icon={Clock3}
-                label="Tertunda"
+                label="Mendesak"
                 value={stats.overdue}
                 chip="perlu fokus"
-                gradient="from-orange-500/40 to-amber-400/10"
+                gradient="from-orange-50 to-white"
             />
         </div>
     );
@@ -538,20 +512,20 @@ function StatCard({ icon: Icon, label, value, chip, gradient }) {
     return (
         <div
             className={clsx(
-                'rounded-3xl border border-white/10 bg-gradient-to-br p-4 text-white shadow-lg shadow-black/20',
+                'rounded-3xl border border-slate-200 bg-gradient-to-br p-4 text-slate-900 shadow-lg shadow-slate-200/70',
                 gradient,
             )}
         >
             <div className="flex items-start justify-between">
                 <div>
-                    <p className="text-sm uppercase tracking-widest text-white/70">{label}</p>
-                    <p className="mt-2 text-3xl font-semibold">{value}</p>
+                    <p className="text-sm uppercase tracking-widest text-slate-500">{label}</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{value}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 p-3">
+                <div className="rounded-2xl bg-white/80 p-3 text-slate-600">
                     <Icon className="h-5 w-5" />
                 </div>
             </div>
-            <span className="mt-4 inline-flex rounded-full bg-black/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/80">
+            <span className="mt-4 inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
                 {chip}
             </span>
         </div>
@@ -560,25 +534,25 @@ function StatCard({ icon: Icon, label, value, chip, gradient }) {
 
 function Field({ label, error, input }) {
     return (
-        <label className="mb-5 block space-y-2 text-sm text-slate-200 last:mb-0">
-            <span className="font-semibold text-white">{label}</span>
+        <label className="mb-5 block space-y-2 text-sm text-slate-600 last:mb-0">
+            <span className="font-semibold text-slate-900">{label}</span>
             {input}
-            {error && <p className="text-xs text-rose-300">{Array.isArray(error) ? error[0] : error}</p>}
+            {error && <p className="text-xs text-rose-600">{Array.isArray(error) ? error[0] : error}</p>}
         </label>
     );
 }
 
 function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, authLoading, submitAuth }) {
     return (
-        <div className="mx-auto w-full max-w-xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/30 backdrop-blur">
+        <div className="mx-auto w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/70">
             <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                     onClick={() => setAuthMode('login')}
                     className={clsx(
-                        'w-full flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition sm:flex sm:px-6',
+                        'w-full flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition sm:flex sm:px-6',
                         authMode === 'login'
-                            ? 'bg-indigo-500 text-white'
-                            : 'bg-white/5 text-white hover:bg-white/10',
+                            ? 'border-transparent bg-indigo-600 text-white shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                     )}
                 >
                     <span className="inline-flex items-center justify-center gap-2">
@@ -589,10 +563,10 @@ function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, au
                 <button
                     onClick={() => setAuthMode('register')}
                     className={clsx(
-                        'w-full flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition sm:flex sm:px-6',
+                        'w-full flex-1 items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition sm:flex sm:px-6',
                         authMode === 'register'
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-white/5 text-white hover:bg-white/10',
+                            ? 'border-transparent bg-emerald-500 text-white shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                     )}
                 >
                     <span className="inline-flex items-center justify-center gap-2">
@@ -612,7 +586,7 @@ function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, au
                                 type="text"
                                 value={authForm.name}
                                 onChange={(event) => setAuthForm((prev) => ({ ...prev, name: event.target.value }))}
-                                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-400 focus:border-emerald-400/70 focus:outline-none"
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none"
                                 placeholder="Nama Anda"
                             />
                         }
@@ -627,7 +601,7 @@ function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, au
                             type="email"
                             value={authForm.email}
                             onChange={(event) => setAuthForm((prev) => ({ ...prev, email: event.target.value }))}
-                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-400 focus:border-indigo-400/70 focus:outline-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
                             placeholder="you@example.com"
                         />
                     }
@@ -641,7 +615,7 @@ function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, au
                             type="password"
                             value={authForm.password}
                             onChange={(event) => setAuthForm((prev) => ({ ...prev, password: event.target.value }))}
-                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-400 focus:border-indigo-400/70 focus:outline-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
                             placeholder="Minimal 8 karakter"
                         />
                     }
@@ -658,7 +632,7 @@ function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, au
                                 onChange={(event) =>
                                     setAuthForm((prev) => ({ ...prev, password_confirmation: event.target.value }))
                                 }
-                                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-slate-400 focus:border-emerald-400/70 focus:outline-none"
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none"
                                 placeholder="Ulangi password"
                             />
                         }
@@ -668,11 +642,112 @@ function AuthCard({ authMode, setAuthMode, authForm, setAuthForm, authErrors, au
                 <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full rounded-2xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-60"
+                    className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
                 >
                     {authMode === 'login' ? 'Masuk & Sinkronkan' : 'Buat Akun Baru'}
                 </button>
             </form>
+        </div>
+    );
+}
+
+function TodoModal({ isOpen, onClose, onSubmit, form, setForm, formErrors, isSaving, selectedTodo }) {
+    if (!isOpen) {
+        return null;
+    }
+
+    const handleWrapperClick = (event) => {
+        event.stopPropagation();
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-6" onClick={onClose}>
+            <div
+                className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-900/20"
+                onClick={handleWrapperClick}
+            >
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">
+                            {selectedTodo ? 'Edit Tugas' : 'Tugas Baru'}
+                        </p>
+                        <h2 className="text-2xl font-semibold text-slate-900">
+                            {selectedTodo ? 'Perbarui rincian tugas' : 'Tambah rencana baru'}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Isi judul, detail, dan deadline untuk menjaga ritme produktifmu.
+                        </p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                        aria-label="Tutup modal"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+
+                <form onSubmit={onSubmit} className="mt-6 space-y-5">
+                    <Field
+                        label="Judul"
+                        error={formErrors.title}
+                        input={
+                            <input
+                                type="text"
+                                value={form.title}
+                                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
+                                placeholder="Contoh: Review sprint backlog"
+                            />
+                        }
+                    />
+
+                    <Field
+                        label="Deskripsi"
+                        error={formErrors.description}
+                        input={
+                            <textarea
+                                value={form.description}
+                                onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                                rows={3}
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
+                                placeholder="Detail tambahan atau langkah kecil..."
+                            />
+                        }
+                    />
+
+                    <Field
+                        label="Deadline"
+                        error={formErrors.due_at}
+                        input={
+                            <input
+                                type="datetime-local"
+                                value={form.due_at}
+                                onChange={(event) => setForm((prev) => ({ ...prev, due_at: event.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-indigo-400 focus:outline-none"
+                            />
+                        }
+                    />
+
+                    <div className="flex flex-wrap gap-3 pt-2">
+                        <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
+                        >
+                            <Plus className="h-4 w-4" />
+                            {selectedTodo ? 'Simpan Perubahan' : 'Tambah Tugas'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                        >
+                            Batalkan
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 }

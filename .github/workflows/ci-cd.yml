@@ -141,12 +141,12 @@ jobs:
         name: Siapkan tag image PHP
         run: |
           {
-            echo "list<<'EOF'"
-            echo "${APP_IMAGE}:${GITHUB_SHA}"
+            printf "list<<EOF\n"
+            printf "%s\n" "${APP_IMAGE}:${GITHUB_SHA}"
             if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-              echo "${APP_IMAGE}:latest"
+              printf "%s\n" "${APP_IMAGE}:latest"
             fi
-            echo "EOF"
+            printf "EOF\n"
           } >> "$GITHUB_OUTPUT"
           echo "primary=${APP_IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
@@ -163,12 +163,12 @@ jobs:
         name: Siapkan tag image Nginx
         run: |
           {
-            echo "list<<'EOF'"
-            echo "${NGINX_IMAGE}:${GITHUB_SHA}"
+            printf "list<<EOF\n"
+            printf "%s\n" "${NGINX_IMAGE}:${GITHUB_SHA}"
             if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-              echo "${NGINX_IMAGE}:latest"
+              printf "%s\n" "${NGINX_IMAGE}:latest"
             fi
-            echo "EOF"
+            printf "EOF\n"
           } >> "$GITHUB_OUTPUT"
           echo "primary=${NGINX_IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 

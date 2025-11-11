@@ -1,6 +1,8 @@
+# Orkestrasi layanan produksi aplikasi Laravel Todo
 services:
+  # Layanan utama PHP-FPM yang menjalankan aplikasi web
   app:
-    image: todo_app:production
+    image: ${APP_SERVICE_IMAGE:-todo_app:production}
     build:
       context: ..
       dockerfile: docker/Dockerfile.prod
@@ -23,8 +25,9 @@ services:
     networks:
       - todo
 
+  # Layanan worker queue terpisah agar job tidak memblokir request web
   queue:
-    image: todo_app:production
+    image: ${APP_SERVICE_IMAGE:-todo_app:production}
     env_file:
       - ../.env.production
     command:
@@ -43,7 +46,9 @@ services:
     networks:
       - todo
 
+  # Layanan Nginx sebagai reverse proxy publik yang meneruskan request ke PHP-FPM
   web:
+    image: ${NGINX_SERVICE_IMAGE:-todo_nginx:production}
     build:
       context: ..
       dockerfile: docker/Dockerfile.prod
@@ -58,6 +63,7 @@ services:
     networks:
       - todo
 
+  # Database PostgreSQL dengan healthcheck sederhana
   postgres:
     image: postgres:16-alpine
     environment:
@@ -77,6 +83,7 @@ services:
     networks:
       - todo
 
+  # Redis dipakai untuk cache dan antrian, dengan healthcheck bawaan
   redis:
     image: redis:7.4-alpine
     command: redis-server --save 60 1 --loglevel warning
@@ -90,12 +97,14 @@ services:
     networks:
       - todo
 
+# Volume named agar data penting bertahan walau kontainer diganti
 volumes:
   postgres_data:
   redis_data:
   storage_data:
   bootstrap_cache:
 
+# Jaringan bridge internal agar seluruh layanan dapat saling terhubung
 networks:
   todo:
     driver: bridge

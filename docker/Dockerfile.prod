@@ -1,9 +1,11 @@
+# Dockerfile produksi untuk membangun image PHP-FPM dan Nginx aplikasi Laravel ini
 # syntax=docker/dockerfile:1.7
 
 ARG PHP_IMAGE=php:8.4-fpm-bookworm
 ARG NGINX_IMAGE=nginx:1.27-alpine
 ARG APP_DIR=/var/www/laravel-todo
 
+# Tahap dasar PHP menyiapkan semua dependency sistem dan ekstensi yang dibutuhkan aplikasi
 FROM ${PHP_IMAGE} AS php-base
 ARG APP_DIR
 
@@ -56,6 +58,7 @@ RUN apt-get update \
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
+# Aktifkan konfigurasi produksi PHP dan optimasi OPCache untuk performa
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
     && { \
     echo "opcache.enable=1"; \
@@ -68,12 +71,14 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
 
 WORKDIR ${APP_DIR}
 
+# Tahap vendor hanya meng-install dependency PHP agar layer ini bisa di-cache terpisah
 FROM php-base AS vendor
 COPY composer.json composer.lock ./
 RUN composer install --no-progress --prefer-dist --no-interaction --optimize-autoloader --no-scripts
 COPY . .
 RUN composer install --no-progress --prefer-dist --no-interaction --optimize-autoloader
 
+# Tahap assets bertugas menjalankan build Vite agar bundle frontend siap dipakai
 FROM node:20-bookworm AS assets
 ARG APP_DIR
 WORKDIR ${APP_DIR}
@@ -82,6 +87,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Tahap app menyatukan kode aplikasi, dependency, dan skrip entri untuk kontainer PHP-FPM
 FROM php-base AS app
 ARG APP_DIR
 ENV APP_ENV=production \
@@ -103,6 +109,7 @@ EXPOSE 9000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["php-fpm", "-y", "/usr/local/etc/php-fpm.conf", "-R"]
 
+# Tahap nginx membuat image terpisah yang hanya berisi artefak build dan konfigurasi Nginx
 FROM ${NGINX_IMAGE} AS nginx
 ARG APP_DIR
 WORKDIR ${APP_DIR}

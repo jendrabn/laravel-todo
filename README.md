@@ -63,3 +63,27 @@
    - Setelah deploy, jalankan kembali `migrate --force` jika ada migrasi baru.
 
 > Semua path internal kontainer menunjuk ke `/var/www/laravel-todo`, sehingga repo wajib berada di path yang sama di VPS.
+
+## Otomasi Deploy via GitHub Actions
+
+Workflow `.github/workflows/ci-cd.yml` menangani build & deploy otomatis. Berikut cara memakainya:
+
+### 1. Persiapan pertama kali
+1. Pastikan server sudah mengikuti langkah "Deployment" di atas (repo berada di `DEPLOY_PATH`, `.env.production` terisi, Docker Compose dapat dijalankan manual).
+2. Tambahkan secrets di GitHub Repository Settings > Secrets and variables > Actions:
+   - `GHCR_USERNAME` dan `GHCR_TOKEN` (Personal Access Token dengan scope `write:packages` untuk push image ke GHCR).
+   - `SSH_HOST`, `SSH_USER`, `SSH_KEY` (private key format PEM), opsional `SSH_PORT` jika tidak 22.
+   - `DEPLOY_PATH` (mis. `/var/www/laravel-todo`).
+3. Opsional: jalankan workflow secara manual di tab Actions (pilih "CI/CD" lalu "Run workflow") setelah secrets terisi untuk memastikan koneksi SSH dan Docker Compose di server siap.
+
+### 2. Deploy saat ada update kode
+1. Buat branch atau pull request seperti biasa. Workflow otomatis menjalankan job **Validasi & Test** pada setiap push/PR untuk memastikan lint, build aset, dan test lulus.
+2. Setelah PR digabung ke `main`, push tersebut akan memicu urutan:
+   - **tests**: install dependensi, build aset, migrasi database testing, jalankan Pint, lalu `php artisan test`.
+   - **build-images**: membangun image `app` dan `nginx` dari `docker/Dockerfile.prod`, men-tag `ghcr.io/<org>/<repo>-{app,nginx}:<sha>` (plus `latest` untuk branch `main`), lalu push ke GHCR.
+   - **deploy**: SSH ke server, `git reset --hard origin/main`, membuat `.env.production.ci` yang meng-override `APP_SERVICE_IMAGE` dan `NGINX_SERVICE_IMAGE` sesuai tag terbaru, kemudian menjalankan `docker compose -f docker/docker-compose.prod.yml --env-file .env.production.ci up -d --remove-orphans`.
+3. Pantau hasil di tab Actions. Jika deploy gagal, periksa log job lalu gunakan tombol "Re-run jobs" setelah memperbaiki penyebabnya.
+
+### 3. Deploy manual (jika butuh hotfix tanpa commit baru)
+1. Buka tab Actions, pilih workflow "CI/CD", klik **Run workflow**, dan pilih branch `main`.
+2. Workflow akan menjalankan semua job (tests, build, deploy) walaupun tidak ada commit baru. Ini berguna untuk redeploy cepat jika server bermasalah.

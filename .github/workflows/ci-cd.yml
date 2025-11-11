@@ -1,0 +1,225 @@
+# Workflow CI/CD utama untuk validasi, build image, dan deploy aplikasi Laravel Todo
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Nama environment deploy (mis. production)"
+        required: false
+        default: production
+
+# Variabel global untuk menamai image GHCR
+env:
+  APP_IMAGE: ghcr.io/${{ github.repository }}-app
+  NGINX_IMAGE: ghcr.io/${{ github.repository }}-nginx
+
+jobs:
+  # Job pertama: jalankan lint, build asset, dan test untuk setiap push/PR
+  tests:
+    name: Validasi & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: laravel
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd="pg_isready -U postgres -d laravel"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: true
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: laravel
+      DB_USERNAME: postgres
+      DB_PASSWORD: secret
+      REDIS_HOST: 127.0.0.1
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: bcmath, curl, exif, gd, intl, mbstring, pcntl, pdo_mysql, pdo_pgsql, pgsql, zip
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-ansi --no-interaction --no-progress --prefer-dist
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Buat salinan .env
+        run: cp .env.example .env
+
+      - name: Generate APP_KEY
+        run: php artisan key:generate --ansi
+
+      - name: Migrasi database uji
+        run: php artisan migrate --force
+
+      - name: Cek format via Pint
+        run: vendor/bin/pint --dirty
+
+      - name: Jalankan test suite
+        run: php artisan test
+
+  # Job kedua: build dan push image Docker ketika bukan event PR
+  build-images:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: tests
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      app_image_tag: ${{ steps.app-tags.outputs.primary }}
+      nginx_image_tag: ${{ steps.nginx-tags.outputs.primary }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: app-tags
+        name: Siapkan tag image PHP
+        run: |
+          {
+            echo "list<<'EOF'"
+            echo "${APP_IMAGE}:${GITHUB_SHA}"
+            if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+              echo "${APP_IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "primary=${APP_IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push PHP-FPM image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.prod
+          target: app
+          push: true
+          tags: ${{ steps.app-tags.outputs.list }}
+
+      - id: nginx-tags
+        name: Siapkan tag image Nginx
+        run: |
+          {
+            echo "list<<'EOF'"
+            echo "${NGINX_IMAGE}:${GITHUB_SHA}"
+            if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+              echo "${NGINX_IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "primary=${NGINX_IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push Nginx image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.prod
+          target: nginx
+          push: true
+          tags: ${{ steps.nginx-tags.outputs.list }}
+
+  # Job ketiga: deploy otomatis ke server produksi via SSH
+  deploy:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    timeout-minutes: 15
+    environment:
+      name: production
+    env:
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      APP_IMAGE_SHA: ${{ needs.build-images.outputs.app_image_tag }}
+      NGINX_IMAGE_SHA: ${{ needs.build-images.outputs.nginx_image_tag }}
+      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          script_stop: true
+          envs: DEPLOY_PATH,APP_IMAGE_SHA,NGINX_IMAGE_SHA,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -euo pipefail
+            if [ -z "${DEPLOY_PATH}" ]; then
+              echo "DEPLOY_PATH belum diatur di secrets." >&2
+              exit 1
+            fi
+
+            cd "${DEPLOY_PATH}"
+            git fetch --all --tags
+            git reset --hard origin/main
+
+            printf "APP_SERVICE_IMAGE=%s\nNGINX_SERVICE_IMAGE=%s\n" "${APP_IMAGE_SHA}" "${NGINX_IMAGE_SHA}" > .env.production.ci
+
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.production.ci pull
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.production.ci up -d --remove-orphans
+            docker image prune -f

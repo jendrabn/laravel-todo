@@ -1,0 +1,101 @@
+services:
+  app:
+    image: todo_app:production
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.prod
+      target: app
+    expose:
+      - "9000"
+    env_file:
+      - ../.env.production
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+    volumes:
+      - storage_data:/var/www/laravel-todo/storage
+      - bootstrap_cache:/var/www/laravel-todo/bootstrap/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - todo
+
+  queue:
+    image: todo_app:production
+    env_file:
+      - ../.env.production
+    command:
+      - /usr/bin/supervisord
+      - -n
+      - -c
+      - /etc/supervisor/conf.d/laravel-worker.conf
+    volumes:
+      - storage_data:/var/www/laravel-todo/storage
+      - bootstrap_cache:/var/www/laravel-todo/bootstrap/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - todo
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.prod
+      target: nginx
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_started
+    volumes:
+      - storage_data:/var/www/laravel-todo/storage:ro
+    networks:
+      - todo
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: laravel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d laravel
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - todo
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - todo
+
+volumes:
+  postgres_data:
+  redis_data:
+  storage_data:
+  bootstrap_cache:
+
+networks:
+  todo:
+    driver: bridge
